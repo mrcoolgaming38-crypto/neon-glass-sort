@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Glass Sort Puzzle</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top, #0a0a0f, #000);
+      color: #fff;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 20px 0;
+      color: #ffea00;
+      text-shadow: 0 0 10px #ffea00, 0 0 20px #ff6600;
+    }
+
+    .board {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 30px;
+      margin-top: 30px;
+    }
+
+    .tube {
+      width: 100px;
+      height: 300px;
+      border: 3px solid #1e90ff;
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column-reverse;
+      justify-content: flex-start;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: inset 0 0 20px #1e90ff;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .tube:hover {
+      transform: scale(1.05);
+    }
+
+    .color {
+      height: 25%;
+      width: 100%;
+    }
+
+    .yellow { background: linear-gradient(#fff176, #fdd835); }
+    .red    { background: linear-gradient(#ef5350, #c62828); }
+    .blue   { background: linear-gradient(#42a5f5, #1565c0); }
+    .pink   { background: linear-gradient(#f48fb1, #ad1457); }
+    .green  { background: linear-gradient(#81c784, #2e7d32); }
+    .purple { background: linear-gradient(#ba68c8, #6a1b9a); }
+
+    .selected {
+      border: 3px solid #ffea00;
+      box-shadow: 0 0 20px #ffea00;
+    }
+
+    #controls {
+      margin-top: 30px;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 10px;
+      background: #1e90ff;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #1565c0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Glass Sort Puzzle</h1>
+  <div class="board" id="board"></div>
+
+  <div id="controls">
+    <button onclick="restartGame()">Restart</button>
+  </div>
+
+  <!-- 🎵 Sound Effects -->
+  <audio id="bgMusic" loop>
+    <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_8f7d6c0e4d.mp3?filename=calm-music-loop-11096.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="clickSound">
+    <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b35f58e12.mp3?filename=click-124467.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="pourSound">
+    <source src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_07c841f342.mp3?filename=water-pouring-into-glass-1-8100.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="winSound">
+    <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_568c349ae4.mp3?filename=game-level-complete-143022.mp3" type="audio/mpeg">
+  </audio>
+
+  <script>
+    // Levels: each level has more colors
+    const levels = [
+      { colors: ['yellow','red'], tubes: 5 },
+      { colors: ['yellow','red','blue'], tubes: 5 },
+      { colors: ['yellow','red','blue','pink'], tubes: 5 },
+      { colors: ['yellow','red','blue','pink','green'], tubes: 5 },
+      { colors: ['yellow','red','blue','pink','green','purple'], tubes: 5 }
+    ];
+
+    let currentLevel = 0;
+    const CAPACITY = 4;
+    let tubes = [];
+    let selected = null;
+
+    // 🎵 Get sounds
+    const bgMusic = document.getElementById("bgMusic");
+    const clickSound = document.getElementById("clickSound");
+    const pourSound = document.getElementById("pourSound");
+    const winSound = document.getElementById("winSound");
+
+    // Autoplay background music after first interaction
+    document.body.addEventListener("click", () => {
+      if (bgMusic.paused) bgMusic.play();
+    }, { once: true });
+
+    function generateGame(level) {
+      const { colors, tubes: numTubes } = levels[level];
+      let pool = [];
+
+      // fill pool with 4 of each color
+      colors.forEach(c => {
+        for (let j = 0; j < CAPACITY; j++) pool.push(c);
+      });
+
+      // Shuffle colors
+      for (let i = pool.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      // Always add +2 empty jars
+      tubes = Array.from({ length: numTubes + 2 }, () => []);
+      let index = 0;
+      for (let t = 0; t < numTubes; t++) {
+        for (let k = 0; k < CAPACITY; k++) {
+          if (index < pool.length) tubes[t].push(pool[index++]);
+        }
+      }
+    }
+
+    function render() {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      tubes.forEach((tube, idx) => {
+        const tubeEl = document.createElement('div');
+        tubeEl.className = 'tube';
+        if (selected === idx) tubeEl.classList.add('selected');
+
+        tube.forEach(color => {
+          const colorEl = document.createElement('div');
+          colorEl.className = 'color ' + color;
+          tubeEl.appendChild(colorEl);
+        });
+
+        tubeEl.onclick = () => onTubeClick(idx);
+        board.appendChild(tubeEl);
+      });
+    }
+
+    function onTubeClick(idx) {
+      clickSound.play();
+      if (selected === null) {
+        selected = idx;
+      } else if (selected === idx) {
+        selected = null;
+      } else {
+        move(selected, idx);
+        selected = null;
+      }
+      render();
+      checkWin();
+    }
+
+    function move(from, to) {
+      if (!tubes[from].length || tubes[to].length >= CAPACITY) return;
+      let color = tubes[from][tubes[from].length - 1];
+      if (tubes[to].length === 0 || tubes[to][tubes[to].length - 1] === color) {
+        tubes[to].push(tubes[from].pop());
+        pourSound.play();
+      }
+    }
+
+    function checkWin() {
+      let won = tubes.every(
+        t => t.length === 0 || (t.length === CAPACITY && new Set(t).size === 1)
+      );
+      if (won) {
+        setTimeout(() => {
+          winSound.play();
+          alert("🎉 Level Completed!");
+          if (currentLevel < levels.length - 1) {
+            currentLevel++;
+            startLevel();
+          } else {
+            alert("🏆 You Finished All Levels!");
+          }
+        }, 200);
+      }
+    }
+
+    function restartGame() {
+      startLevel();
+    }
+
+    function startLevel() {
+      generateGame(currentLevel);
+      render();
+    }
+
+    startLevel();
+  </script>
+</body>
+</html>
